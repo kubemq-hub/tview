@@ -23,18 +23,16 @@ func main() {
 
 func main() {
 	app := tview.NewApplication()
-	textView := tview.NewTextView().
-		SetEditable(true).
-		SetWrap(false).//true).
-		// SetWordWrap(false). // TODO: always wrap if editable
-		SetDynamicColors(true).
-		SetChangedFunc(func() {
+	editBox := tview.NewEditBox(). // TODO: need EditBox
+						SetEditable(true).      // TODO: remove
+						SetWrap(true).          // TODO: need modify cursor movement modification if false
+						SetDynamicColors(true). // TODO: not clear - may be remove
+						SetChangedFunc(func() {
 			app.Draw()
 		}).
 		SetText(corporate)
-	textView.SetBorder(true)
-	if err := app.SetRoot(textView, true).EnableMouse(true).Run(); err != nil {
+	editBox.SetBorder(true) // TODO: add test with and without border
+	if err := app.SetRoot(editBox, true).EnableMouse(true).Run(); err != nil {
 		panic(err)
 	}
 }
-
