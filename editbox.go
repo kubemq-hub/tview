@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
-	"regexp"
 	"strings"
 	"sync"
 	"unicode/utf8"
@@ -30,18 +29,9 @@ func init() {
 	}()
 }
 
-var (
-	openColorRegex  = regexp.MustCompile(`\[([a-zA-Z]*|#[0-9a-zA-Z]*)$`)
-	openRegionRegex = regexp.MustCompile(`\["[a-zA-Z0-9_,;: \-\.]*"?$`)
-	newLineRegex    = regexp.MustCompile(`\r?\n`)
-
-	// TabSize is the number of spaces with which a tab character will be replaced.
-	TabSize = 4
-)
-
-// textViewIndex contains information about each line displayed in the text
+// EditBoxIndex contains information about each line displayed in the text
 // view.
-type textViewIndex struct {
+type EditBoxIndex struct {
 	Line            int    // The index into the "buffer" variable.
 	Pos             int    // The index into the "buffer" string (byte position).
 	NextPos         int    // The (byte) index of the next character in this buffer line.
@@ -52,8 +42,8 @@ type textViewIndex struct {
 	Region          string // The starting region ID.
 }
 
-// textViewRegion contains information about a region.
-type textViewRegion struct {
+// EditBoxRegion contains information about a region.
+type EditBoxRegion struct {
 	// The region ID.
 	ID string
 
@@ -62,7 +52,7 @@ type textViewRegion struct {
 	FromX, FromY, ToX, ToY int
 }
 
-// TextView is a box which displays text. It implements the io.Writer interface
+// EditBox is a box which displays text. It implements the io.Writer interface
 // so you can stream text to it. This does not trigger a redraw automatically
 // but if a handler is installed via SetChangedFunc(), you can cause it to be
 // redrawn. (See SetChangedFunc() for more details.)
@@ -114,8 +104,8 @@ type textViewRegion struct {
 // The ScrollToHighlight() function can be used to jump to the currently
 // highlighted region once when the text view is drawn the next time.
 //
-// See https://github.com/rivo/tview/wiki/TextView for an example.
-type TextView struct {
+// See https://github.com/rivo/tview/wiki/EditBox for an example.
+type EditBox struct {
 	sync.Mutex
 	*Box
 
@@ -127,13 +117,13 @@ type TextView struct {
 
 	// The processed line index. This is nil if the buffer has changed and needs
 	// to be re-indexed.
-	index []*textViewIndex
+	index []*EditBoxIndex
 
 	// The text alignment, one of AlignLeft, AlignCenter, or AlignRight.
 	align int
 
 	// Information about visible regions as of the last call to Draw().
-	regionInfos []*textViewRegion
+	regionInfos []*EditBoxRegion
 
 	// Indices into the "index" slice which correspond to the first line of the
 	// first highlight and the last line of the last highlight. This is calculated
@@ -155,9 +145,6 @@ type TextView struct {
 
 	// The index of the first line shown in the text view.
 	lineOffset int
-
-	// If set to true, the text view will always remain at the end of the content.
-	trackEnd bool
 
 	// The number of characters to be skipped on each line (not in wrap mode).
 	columnOffset int
@@ -208,17 +195,14 @@ type TextView struct {
 	// highlighted.
 	highlighted func(added, removed, remaining []string)
 
-	// Option for edit text.
-	editable bool
-
-	// Position of cursor in editable option.
+	// Position of cursor.
 	// Coordinates are absolute value of screen.
 	cursor struct{ x, y int }
 }
 
-// NewTextView returns a new text view.
-func NewTextView() *TextView {
-	return &TextView{
+// NewEditBox returns a new text view.
+func NewEditBox() *EditBox {
+	return &EditBox{
 		Box:           NewBox(),
 		highlights:    make(map[string]struct{}),
 		scrollable:    true,
@@ -230,28 +214,24 @@ func NewTextView() *TextView {
 	}
 }
 
-func (t *TextView) initEditable() {
-	if !t.editable {
-		return
-	}
+func (t *EditBox) initEditable() {
 	// update default settings for edit text
 	x, y, _, _ := t.GetInnerRect()
 	t.cursor.x = x
 	t.cursor.y = y
-	t.trackEnd = false
 	t.dynamicColors = false
 }
 
 // SetEditable set the flag for edit text
-func (t *TextView) SetEditable(editable bool) *TextView {
-	t.editable = editable
-	t.initEditable()
-	return t
-}
+// func (t *EditBox) SetEditable(editable bool) *EditBox {
+// 	t.editable = editable
+// 	t.initEditable()
+// 	return t
+// }
 
 // SetBorder sets the flag indicating whether or not the box should have a
 // border.
-func (t *TextView) SetBorder(show bool) *TextView {
+func (t *EditBox) SetBorder(show bool) *EditBox {
 	t.Box.SetBorder(show)
 	t.initEditable()
 	return t
@@ -260,18 +240,15 @@ func (t *TextView) SetBorder(show bool) *TextView {
 // SetScrollable sets the flag that decides whether or not the text view is
 // scrollable. If true, text is kept in a buffer and can be navigated. If false,
 // the last line will always be visible.
-func (t *TextView) SetScrollable(scrollable bool) *TextView {
+func (t *EditBox) SetScrollable(scrollable bool) *EditBox {
 	t.scrollable = scrollable
-	if !scrollable {
-		t.trackEnd = true
-	}
 	return t
 }
 
 // SetWrap sets the flag that, if true, leads to lines that are longer than the
 // available width being wrapped onto the next line. If false, any characters
 // beyond the available width are not displayed.
-func (t *TextView) SetWrap(wrap bool) *TextView {
+func (t *EditBox) SetWrap(wrap bool) *EditBox {
 	if t.wrap != wrap {
 		t.index = nil
 	}
@@ -284,7 +261,7 @@ func (t *TextView) SetWrap(wrap bool) *TextView {
 // that trailing spaces will not be printed.
 //
 // This flag is ignored if the "wrap" flag is false.
-func (t *TextView) SetWordWrap(wrapOnWords bool) *TextView {
+func (t *EditBox) SetWordWrap(wrapOnWords bool) *EditBox {
 	if t.wordWrap != wrapOnWords {
 		t.index = nil
 	}
@@ -294,7 +271,7 @@ func (t *TextView) SetWordWrap(wrapOnWords bool) *TextView {
 
 // SetTextAlign sets the text alignment within the text view. This must be
 // either AlignLeft, AlignCenter, or AlignRight.
-func (t *TextView) SetTextAlign(align int) *TextView {
+func (t *EditBox) SetTextAlign(align int) *EditBox {
 	if t.align != align {
 		t.index = nil
 	}
@@ -305,14 +282,14 @@ func (t *TextView) SetTextAlign(align int) *TextView {
 // SetTextColor sets the initial color of the text (which can be changed
 // dynamically by sending color strings in square brackets to the text view if
 // dynamic colors are enabled).
-func (t *TextView) SetTextColor(color tcell.Color) *TextView {
+func (t *EditBox) SetTextColor(color tcell.Color) *EditBox {
 	t.textColor = color
 	return t
 }
 
 // SetText sets the text of this text view to the provided string. Previously
 // contained text will be removed.
-func (t *TextView) SetText(text string) *TextView {
+func (t *EditBox) SetText(text string) *EditBox {
 	t.Clear()
 	fmt.Fprint(t, text)
 	return t
@@ -320,7 +297,7 @@ func (t *TextView) SetText(text string) *TextView {
 
 // GetText returns the current text of this text view. If "stripTags" is set
 // to true, any region/color tags are stripped from the text.
-func (t *TextView) GetText(stripTags bool) string {
+func (t *EditBox) GetText(stripTags bool) string {
 	// Get the buffer.
 	buffer := t.buffer
 	if !stripTags && len(t.recentBytes) > 0 {
@@ -348,7 +325,7 @@ func (t *TextView) GetText(stripTags bool) string {
 
 // SetDynamicColors sets the flag that allows the text color to be changed
 // dynamically. See class description for details.
-func (t *TextView) SetDynamicColors(dynamic bool) *TextView {
+func (t *EditBox) SetDynamicColors(dynamic bool) *EditBox {
 	if t.dynamicColors != dynamic {
 		t.index = nil
 	}
@@ -358,7 +335,7 @@ func (t *TextView) SetDynamicColors(dynamic bool) *TextView {
 
 // SetRegions sets the flag that allows to define regions in the text. See class
 // description for details.
-func (t *TextView) SetRegions(regions bool) *TextView {
+func (t *EditBox) SetRegions(regions bool) *EditBox {
 	if t.regions != regions {
 		t.index = nil
 	}
@@ -376,13 +353,13 @@ func (t *TextView) SetRegions(regions bool) *TextView {
 // should follow:
 //
 //   - You can call Application.Draw() from this handler.
-//   - You can call TextView.HasFocus() from this handler.
+//   - You can call EditBox.HasFocus() from this handler.
 //   - During the execution of this handler, access to any other variables from
 //     this primitive or any other primitive must be queued using
 //     Application.QueueUpdate().
 //
 // See package description for details on dealing with concurrency.
-func (t *TextView) SetChangedFunc(handler func()) *TextView {
+func (t *EditBox) SetChangedFunc(handler func()) *EditBox {
 	t.changed = handler
 	return t
 }
@@ -390,7 +367,7 @@ func (t *TextView) SetChangedFunc(handler func()) *TextView {
 // SetDoneFunc sets a handler which is called when the user presses on the
 // following keys: Escape, Enter, Tab, Backtab. The key is passed to the
 // handler.
-func (t *TextView) SetDoneFunc(handler func(key tcell.Key)) *TextView {
+func (t *EditBox) SetDoneFunc(handler func(key tcell.Key)) *EditBox {
 	t.done = handler
 	return t
 }
@@ -402,29 +379,27 @@ func (t *TextView) SetDoneFunc(handler func(key tcell.Key)) *TextView {
 //
 // Note that because regions are only determined during drawing, this function
 // can only fire for regions that have existed during the last call to Draw().
-func (t *TextView) SetHighlightedFunc(handler func(added, removed, remaining []string)) *TextView {
+func (t *EditBox) SetHighlightedFunc(handler func(added, removed, remaining []string)) *EditBox {
 	t.highlighted = handler
 	return t
 }
 
 // ScrollTo scrolls to the specified row and column (both starting with 0).
-func (t *TextView) ScrollTo(row, column int) *TextView {
+func (t *EditBox) ScrollTo(row, column int) *EditBox {
 	if !t.scrollable {
 		return t
 	}
 	t.lineOffset = row
 	t.columnOffset = column
-	t.trackEnd = false
 	return t
 }
 
 // ScrollToBeginning scrolls to the top left corner of the text if the text view
 // is scrollable.
-func (t *TextView) ScrollToBeginning() *TextView {
+func (t *EditBox) ScrollToBeginning() *EditBox {
 	if !t.scrollable {
 		return t
 	}
-	t.trackEnd = false
 	t.lineOffset = 0
 	t.columnOffset = 0
 	return t
@@ -433,23 +408,22 @@ func (t *TextView) ScrollToBeginning() *TextView {
 // ScrollToEnd scrolls to the bottom left corner of the text if the text view
 // is scrollable. Adding new rows to the end of the text view will cause it to
 // scroll with the new data.
-func (t *TextView) ScrollToEnd() *TextView {
+func (t *EditBox) ScrollToEnd() *EditBox {
 	if !t.scrollable {
 		return t
 	}
-	t.trackEnd = true
 	t.columnOffset = 0
 	return t
 }
 
 // GetScrollOffset returns the number of rows and columns that are skipped at
 // the top left corner when the text view has been scrolled.
-func (t *TextView) GetScrollOffset() (row, column int) {
+func (t *EditBox) GetScrollOffset() (row, column int) {
 	return t.lineOffset, t.columnOffset
 }
 
 // Clear removes all text from the buffer.
-func (t *TextView) Clear() *TextView {
+func (t *EditBox) Clear() *EditBox {
 	t.buffer = nil
 	t.recentBytes = nil
 	t.index = nil
@@ -468,7 +442,7 @@ func (t *TextView) Clear() *TextView {
 //
 // Text in highlighted regions will be drawn inverted, i.e. with their
 // background and foreground colors swapped.
-func (t *TextView) Highlight(regionIDs ...string) *TextView {
+func (t *EditBox) Highlight(regionIDs ...string) *EditBox {
 	// Toggle highlights.
 	if t.toggleHighlights {
 		var newIDs []string
@@ -524,7 +498,7 @@ func (t *TextView) Highlight(regionIDs ...string) *TextView {
 }
 
 // GetHighlights returns the IDs of all currently highlighted regions.
-func (t *TextView) GetHighlights() (regionIDs []string) {
+func (t *EditBox) GetHighlights() (regionIDs []string) {
 	for id := range t.highlights {
 		regionIDs = append(regionIDs, id)
 	}
@@ -535,7 +509,7 @@ func (t *TextView) GetHighlights() (regionIDs []string) {
 // When set to true, the Highlight() function (or a mouse click) will toggle the
 // provided/selected regions. When set to false, Highlight() (or a mouse click)
 // will simply highlight the provided regions.
-func (t *TextView) SetToggleHighlights(toggle bool) *TextView {
+func (t *EditBox) SetToggleHighlights(toggle bool) *EditBox {
 	t.toggleHighlights = toggle
 	return t
 }
@@ -548,13 +522,12 @@ func (t *TextView) SetToggleHighlights(toggle bool) *TextView {
 //
 // Nothing happens if there are no highlighted regions or if the text view is
 // not scrollable.
-func (t *TextView) ScrollToHighlight() *TextView {
+func (t *EditBox) ScrollToHighlight() *EditBox {
 	if len(t.highlights) == 0 || !t.scrollable || !t.regions {
 		return t
 	}
 	t.index = nil
 	t.scrollToHighlights = true
-	t.trackEnd = false
 	return t
 }
 
@@ -564,7 +537,7 @@ func (t *TextView) ScrollToHighlight() *TextView {
 //
 // If the region does not exist or if regions are turned off, an empty string
 // is returned.
-func (t *TextView) GetRegionText(regionID string) string {
+func (t *EditBox) GetRegionText(regionID string) string {
 	if !t.regions || regionID == "" {
 		return ""
 	}
@@ -631,7 +604,7 @@ func (t *TextView) GetRegionText(regionID string) string {
 }
 
 // Focus is called when this primitive receives focus.
-func (t *TextView) Focus(delegate func(p Primitive)) {
+func (t *EditBox) Focus(delegate func(p Primitive)) {
 	// Implemented here with locking because this is used by layout primitives.
 	t.Lock()
 	defer t.Unlock()
@@ -639,7 +612,7 @@ func (t *TextView) Focus(delegate func(p Primitive)) {
 }
 
 // HasFocus returns whether or not this primitive has focus.
-func (t *TextView) HasFocus() bool {
+func (t *EditBox) HasFocus() bool {
 	// Implemented here with locking because this may be used in the "changed"
 	// callback.
 	t.Lock()
@@ -650,7 +623,7 @@ func (t *TextView) HasFocus() bool {
 // Write lets us implement the io.Writer interface. Tab characters will be
 // replaced with TabSize space characters. A "\n" or "\r\n" will be interpreted
 // as a new line.
-func (t *TextView) Write(p []byte) (n int, err error) {
+func (t *EditBox) Write(p []byte) (n int, err error) {
 	// Notify at the end.
 	t.Lock()
 	changed := t.changed
@@ -718,7 +691,7 @@ func (t *TextView) Write(p []byte) (n int, err error) {
 // the buffer onto the screen. Each line in the index will contain a pointer
 // into the buffer from which on we will print text. It will also contain the
 // color with which the line starts.
-func (t *TextView) reindexBuffer(width int) {
+func (t *EditBox) reindexBuffer(width int) {
 	if t.index != nil {
 		return // Nothing has changed. We can still use the current index.
 	}
@@ -778,7 +751,7 @@ func (t *TextView) reindexBuffer(width int) {
 			foregroundColor, backgroundColor, attributes string
 		)
 		for _, splitLine := range splitLines {
-			line := &textViewIndex{
+			line := &EditBoxIndex{
 				Line:            bufferIndex,
 				Pos:             originalPos,
 				ForegroundColor: foregroundColor,
@@ -890,7 +863,7 @@ func (t *TextView) reindexBuffer(width int) {
 }
 
 // Draw draws this primitive onto the screen.
-func (t *TextView) Draw(screen tcell.Screen) {
+func (t *EditBox) Draw(screen tcell.Screen) {
 	t.Lock()
 	defer t.Unlock()
 	t.Box.Draw(screen)
@@ -941,12 +914,6 @@ func (t *TextView) Draw(screen tcell.Screen) {
 	t.scrollToHighlights = false
 
 	// Adjust line offset.
-	if t.lineOffset+height > len(t.index) && !t.editable {
-		t.trackEnd = true
-	}
-	if t.trackEnd {
-		t.lineOffset = len(t.index) - height
-	}
 	if t.lineOffset < 0 {
 		t.lineOffset = 0
 	}
@@ -996,7 +963,7 @@ func (t *TextView) Draw(screen tcell.Screen) {
 		attributes := index.Attributes
 		regionID := index.Region
 		if t.regions && regionID != "" && (len(t.regionInfos) == 0 || t.regionInfos[len(t.regionInfos)-1].ID != regionID) {
-			t.regionInfos = append(t.regionInfos, &textViewRegion{
+			t.regionInfos = append(t.regionInfos, &EditBoxRegion{
 				ID:    regionID,
 				FromX: x,
 				FromY: y + line - t.lineOffset,
@@ -1043,7 +1010,7 @@ func (t *TextView) Draw(screen tcell.Screen) {
 						regionID = regions[regionPos][1]
 						if regionID != "" {
 							// Start new region.
-							t.regionInfos = append(t.regionInfos, &textViewRegion{
+							t.regionInfos = append(t.regionInfos, &EditBoxRegion{
 								ID:    regionID,
 								FromX: x + posX,
 								FromY: y + line - t.lineOffset,
@@ -1130,12 +1097,10 @@ func (t *TextView) Draw(screen tcell.Screen) {
 		t.lineOffset = 0
 	}
 
-	if t.editable {
-		screen.ShowCursor(t.cursor.x, t.cursor.y)
-	}
+	screen.ShowCursor(t.cursor.x, t.cursor.y)
 }
 
-func (t *TextView) cursorLimiting() {
+func (t *EditBox) cursorLimiting() {
 	x, y, width, height := t.GetInnerRect()
 	// cursor must be inside editable part of box
 	borderLimit := func() {
@@ -1182,7 +1147,7 @@ const (
 	icel int = 1
 )
 
-func (t *TextView) insertRune(bufferIndex, bufferPos int, r rune) {
+func (t *EditBox) insertRune(bufferIndex, bufferPos int, r rune) {
 	// TODO: new line
 	b := []byte(t.buffer[bufferIndex])
 	str := string(r)
@@ -1196,7 +1161,7 @@ func (t *TextView) insertRune(bufferIndex, bufferPos int, r rune) {
 	t.updateBuffers()
 }
 
-func (t *TextView) updateBuffers() {
+func (t *EditBox) updateBuffers() {
 	_, _, width, _ := t.GetInnerRect()
 	text := t.GetText(false)
 	t.Clear()
@@ -1206,134 +1171,75 @@ func (t *TextView) updateBuffers() {
 }
 
 // InputHandler returns the handler for this primitive.
-func (t *TextView) InputHandler() func(event *tcell.EventKey, setFocus func(p Primitive)) {
-	if t.editable {
-		return t.WrapInputHandler(func(event *tcell.EventKey, setFocus func(p Primitive)) {
-			x, y, width, height := t.GetInnerRect()
-			_ = width
-			_ = height
-			presentLine := t.cursor.y + t.lineOffset - y
-			if presentLine < 0 || presentLine >= len(t.index) {
-				panic(presentLine)
+func (t *EditBox) InputHandler() func(event *tcell.EventKey, setFocus func(p Primitive)) {
+	return t.WrapInputHandler(func(event *tcell.EventKey, setFocus func(p Primitive)) {
+		x, y, width, height := t.GetInnerRect()
+		_ = width
+		_ = height
+		presentLine := t.cursor.y + t.lineOffset - y
+		if presentLine < 0 || presentLine >= len(t.index) {
+			panic(presentLine)
+		}
+		key := event.Key()
+		switch key {
+		case tcell.KeyUp:
+			if t.cursor.y == y {
+				t.lineOffset--
+			} else {
+				t.cursor.y--
 			}
-			key := event.Key()
-			switch key {
-			case tcell.KeyUp:
+		case tcell.KeyDown:
+			if t.cursor.y == y+height-1 {
+				t.lineOffset++
+			} else {
+				t.cursor.y++
+			}
+		case tcell.KeyLeft:
+			if 0 < presentLine && t.cursor.x == x {
+				// move left to end of previous line if exist
 				if t.cursor.y == y {
 					t.lineOffset--
 				} else {
 					t.cursor.y--
 				}
-			case tcell.KeyDown:
-				if t.cursor.y == y+height-1 {
+				t.cursor.x = t.index[presentLine-1].Width + icel
+				// TODO: check for no-wrap case
+			} else {
+				t.cursor.x--
+			}
+		case tcell.KeyRight:
+			if presentLine+1 < len(t.index) && t.cursor.x+1 >= x+t.index[presentLine].Width {
+				// move rigth to begin of next line if exist
+				t.cursor.x = x
+				if t.cursor.y == x+width && t.lineOffset+1 < len(t.index) {
 					t.lineOffset++
 				} else {
 					t.cursor.y++
 				}
-			case tcell.KeyLeft:
-				if 0 < presentLine && t.cursor.x == x {
-					// move left to end of previous line if exist
-					if t.cursor.y == y {
-						t.lineOffset--
-					} else {
-						t.cursor.y--
-					}
-					t.cursor.x = t.index[presentLine-1].Width + icel
-					// TODO: check for no-wrap case
-				} else {
-					t.cursor.x--
-				}
-			case tcell.KeyRight:
-				if presentLine+1 < len(t.index) && t.cursor.x+1 >= x+t.index[presentLine].Width {
-					// move rigth to begin of next line if exist
-					t.cursor.x = x
-					if t.cursor.y == x+width && t.lineOffset+1 < len(t.index) {
-						t.lineOffset++
-					} else {
-						t.cursor.y++
-					}
-				} else {
-					t.cursor.x++
-				}
-			case tcell.KeyHome:
-				t.lineOffset = 0
-				t.columnOffset = 0
-			case tcell.KeyPgDn, tcell.KeyCtrlF:
-				t.lineOffset += height
-			case tcell.KeyPgUp, tcell.KeyCtrlB:
-				t.lineOffset -= height
-			case tcell.KeyEnd:
-				t.cursor.x = x + width
-			default:
-				bufferIndex := t.index[presentLine].Line
-				bufferPos := t.index[presentLine].Pos + t.cursor.x - x
-				r := event.Rune()
-				t.insertRune(bufferIndex, bufferPos, r)
-			}
-			t.cursorLimiting()
-		})
-	}
-	return t.WrapInputHandler(func(event *tcell.EventKey, setFocus func(p Primitive)) {
-		key := event.Key()
-
-		if key == tcell.KeyEscape || key == tcell.KeyEnter || key == tcell.KeyTab || key == tcell.KeyBacktab {
-			if t.done != nil {
-				t.done(key)
-			}
-			return
-		}
-
-		if !t.scrollable {
-			return
-		}
-
-		switch key {
-		case tcell.KeyRune:
-			switch event.Rune() {
-			case 'g': // Home.
-				t.trackEnd = false
-				t.lineOffset = 0
-				t.columnOffset = 0
-			case 'G': // End.
-				t.trackEnd = true
-				t.columnOffset = 0
-			case 'j': // Down.
-				t.lineOffset++
-			case 'k': // Up.
-				t.trackEnd = false
-				t.lineOffset--
-			case 'h': // Left.
-				t.columnOffset--
-			case 'l': // Right.
-				t.columnOffset++
+			} else {
+				t.cursor.x++
 			}
 		case tcell.KeyHome:
-			t.trackEnd = false
 			t.lineOffset = 0
 			t.columnOffset = 0
-		case tcell.KeyEnd:
-			t.trackEnd = true
-			t.columnOffset = 0
-		case tcell.KeyUp:
-			t.trackEnd = false
-			t.lineOffset--
-		case tcell.KeyDown:
-			t.lineOffset++
-		case tcell.KeyLeft:
-			t.columnOffset--
-		case tcell.KeyRight:
-			t.columnOffset++
 		case tcell.KeyPgDn, tcell.KeyCtrlF:
-			t.lineOffset += t.pageSize
+			t.lineOffset += height
 		case tcell.KeyPgUp, tcell.KeyCtrlB:
-			t.trackEnd = false
-			t.lineOffset -= t.pageSize
+			t.lineOffset -= height
+		case tcell.KeyEnd:
+			t.cursor.x = x + width
+		default:
+			bufferIndex := t.index[presentLine].Line
+			bufferPos := t.index[presentLine].Pos + t.cursor.x - x
+			r := event.Rune()
+			t.insertRune(bufferIndex, bufferPos, r)
 		}
+		t.cursorLimiting()
 	})
 }
 
 // MouseHandler returns the mouse handler for this primitive.
-func (t *TextView) MouseHandler() func(action MouseAction, event *tcell.EventMouse, setFocus func(p Primitive)) (consumed bool, capture Primitive) {
+func (t *EditBox) MouseHandler() func(action MouseAction, event *tcell.EventMouse, setFocus func(p Primitive)) (consumed bool, capture Primitive) {
 	// TODO: move by mouse
 	return t.WrapMouseHandler(func(action MouseAction, event *tcell.EventMouse, setFocus func(p Primitive)) (consumed bool, capture Primitive) {
 		x, y := event.Position()
@@ -1356,14 +1262,13 @@ func (t *TextView) MouseHandler() func(action MouseAction, event *tcell.EventMou
 					break
 				}
 			}
-			if t.editable {
-				t.cursor.x = x
-				t.cursor.y = y
-			}
+			// move cursor
+			t.cursor.x = x
+			t.cursor.y = y
+
 			consumed = true
 			setFocus(t)
 		case MouseScrollUp:
-			t.trackEnd = false
 			t.lineOffset--
 			consumed = true
 		case MouseScrollDown:
@@ -1371,9 +1276,7 @@ func (t *TextView) MouseHandler() func(action MouseAction, event *tcell.EventMou
 			consumed = true
 		}
 
-		if t.editable {
-			t.cursorLimiting()
-		}
+		t.cursorLimiting()
 
 		return
 	})

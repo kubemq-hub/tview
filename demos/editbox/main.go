@@ -24,10 +24,9 @@ func main() {
 func main() {
 	app := tview.NewApplication()
 	editBox := tview.NewEditBox(). // TODO: need EditBox
-						SetEditable(true).      // TODO: remove
-						SetWrap(true).          // TODO: need modify cursor movement modification if false
-						SetDynamicColors(true). // TODO: not clear - may be remove
-						SetChangedFunc(func() {
+					SetWrap(true).          // TODO: need modify cursor movement modification if false
+					SetDynamicColors(true). // TODO: not clear - may be remove
+					SetChangedFunc(func() {
 			app.Draw()
 		}).
 		SetText(corporate)
