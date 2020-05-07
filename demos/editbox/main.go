@@ -25,7 +25,7 @@ func main() {
 	app := tview.NewApplication()
 	textView := tview.NewTextView().
 		SetEditable(true).
-		SetWrap(true).
+		SetWrap(false).//true).
 		// SetWordWrap(false). // TODO: always wrap if editable
 		SetDynamicColors(true).
 		SetChangedFunc(func() {
