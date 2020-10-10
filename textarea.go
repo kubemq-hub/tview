@@ -18,7 +18,34 @@ type TextArea struct {
 	// absolute screen coordinate of cursor
 	cursor struct{ x, y int }
 	// TODO : add colors in edit area
-	// TODO : implement Primitive interface
+
+
+	done func(tcell.Key)
+
+	// A callback function set by the Form class and called when the user leaves
+	// this form item.
+	finished func(tcell.Key)
+}
+
+func (f *TextArea) GetLabel() string {
+	return f.title
+}
+
+func (f *TextArea) SetFormAttributes(labelWidth int, labelColor, bgColor, fieldTextColor, fieldBgColor tcell.Color) FormItem {
+	return f
+}
+
+func (f *TextArea) GetFieldWidth() int {
+	return 0
+}
+
+func (f *TextArea) SetFinishedFunc(handler func(key tcell.Key)) FormItem {
+	f.finished=handler
+	return f
+}
+func (f *TextArea) SetDoneFunc(handler func(key tcell.Key)) FormItem {
+	f.done=handler
+	return f
 }
 
 // NewTextArea returns a new textArea around the given primitive. The primitive's
@@ -364,9 +391,21 @@ func (f *TextArea) InputHandler() func(event *tcell.EventKey, setFocus func(p Pr
 		//	* Move up/down - moving by buffer lines
 		//	* Move left/right - moving by buffer runes
 		//
+
+		finish := func(key tcell.Key) {
+			if f.done != nil {
+				f.done(key)
+			}
+			if f.finished != nil {
+				f.finished(key)
+			}
+		}
+
 		line, pos := f.cursorByScreen()
 		key := event.Key()
 		switch key {
+		case tcell.KeyEsc,tcell.KeyCtrlS:
+			finish(key)
 		case tcell.KeyUp:
 			if line <= 0 {
 				// do nothing
