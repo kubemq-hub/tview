@@ -454,10 +454,7 @@ func (f *TextArea) InputHandler() func(event *tcell.EventKey, setFocus func(p Pr
 			line, pos = f.deleteRune()
 		default:
 			r := event.Rune()
-			if unicode.IsLetter(r) ||
-				unicode.IsNumber(r) ||
-				unicode.IsMark(r) ||
-				unicode.IsSpace(r) {
+			if unicode.IsPrint(r) {
 				f.insertRune(r)
 				pos++
 			}
