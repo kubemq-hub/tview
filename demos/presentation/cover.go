@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/gdamore/tcell"
-	"github.com/rivo/tview"
+	"github.com/kubemq-hub/tview"
 )
 
 const logo = `

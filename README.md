@@ -1,7 +1,7 @@
 # Rich Interactive Widgets for Terminal UIs
 
-[![Godoc Reference](https://img.shields.io/badge/godoc-reference-blue.svg)](https://pkg.go.dev/github.com/rivo/tview)
-[![Go Report](https://img.shields.io/badge/go%20report-A%2B-brightgreen.svg)](https://goreportcard.com/report/github.com/rivo/tview)
+[![Godoc Reference](https://img.shields.io/badge/godoc-reference-blue.svg)](https://pkg.go.dev/github.com/kubemq-hub/tview)
+[![Go Report](https://img.shields.io/badge/go%20report-A%2B-brightgreen.svg)](https://goreportcard.com/report/github.com/kubemq-hub/tview)
 
 This Go package provides commonly needed components for terminal based user interfaces.
 
@@ -23,7 +23,7 @@ They come with lots of customization options and can be easily extended to fit y
 ## Installation
 
 ```bash
-go get github.com/rivo/tview
+go get github.com/kubemq-hub/tview
 ```
 
 ## Hello World
@@ -34,7 +34,7 @@ This basic example creates a box titled "Hello, World!" and displays it in your 
 package main
 
 import (
-	"github.com/rivo/tview"
+	"github.com/kubemq-hub/tview"
 )
 
 func main() {
@@ -45,7 +45,7 @@ func main() {
 }
 ```
 
-Check out the [GitHub Wiki](https://github.com/rivo/tview/wiki) for more examples along with screenshots. Or try the examples in the "demos" subdirectory.
+Check out the [GitHub Wiki](https://github.com/kubemq-hub/tview/wiki) for more examples along with screenshots. Or try the examples in the "demos" subdirectory.
 
 For a presentation highlighting this package, compile and run the program found in the "demos/presentation" subdirectory.
 
@@ -86,7 +86,7 @@ For a presentation highlighting this package, compile and run the program found 
 
 ## Documentation
 
-Refer to https://pkg.go.dev/github.com/rivo/tview for the package's documentation.
+Refer to https://pkg.go.dev/github.com/kubemq-hub/tview for the package's documentation.
 
 ## Dependencies
 

@@ -221,7 +221,7 @@ func (c *TableCell) SetClickedFunc(clicked func() bool) *TableCell {
 //
 // Use SetInputCapture() to override or modify keyboard input.
 //
-// See https://github.com/rivo/tview/wiki/Table for an example.
+// See https://github.com/kubemq-hub/tview/wiki/Table for an example.
 type Table struct {
 	*Box
 

@@ -2,7 +2,7 @@
 package main
 
 import (
-	"github.com/rivo/tview"
+	"github.com/kubemq-hub/tview"
 )
 
 const corporate = `See: [yellow]https://ru.wikipedia.org/wiki/Go

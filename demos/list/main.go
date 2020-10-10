@@ -2,7 +2,7 @@
 package main
 
 import (
-	"github.com/rivo/tview"
+	"github.com/kubemq-hub/tview"
 )
 
 func main() {

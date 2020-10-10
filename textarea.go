@@ -10,7 +10,7 @@ import (
 // TextArea is a wrapper which adds space around another primitive. In addition,
 // the top area (header) and the bottom area (footer) may also contain text.
 //
-// See https://github.com/rivo/tview/wiki/TextArea for an example.
+// See https://github.com/kubemq-hub/tview/wiki/TextArea for an example.
 type TextArea struct {
 	*Box
 	view *TextView

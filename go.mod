@@ -1,6 +1,6 @@
 module github.com/kubemq-hub/tview
 
-go 1.12
+go 1.15
 
 require (
 	github.com/gdamore/tcell v1.3.0

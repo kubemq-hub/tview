@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell"
-	"github.com/rivo/tview"
+	"github.com/kubemq-hub/tview"
 )
 
 const textView1 = `[green]func[white] [yellow]main[white]() {
@@ -69,7 +69,7 @@ const textView2 = `[green]package[white] main
     [red]"strconv"[white]
 
     [red]"github.com/gdamore/tcell"[white]
-    [red]"github.com/rivo/tview"[white]
+    [red]"github.com/kubemq-hub/tview"[white]
 )
 
 [green]func[white] [yellow]main[white]() {
