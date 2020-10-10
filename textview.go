@@ -269,12 +269,13 @@ func (t *TextView) SetText(text string) *TextView {
 	return t
 }
 
-// GetText returns the current text of this text view. If "stripTags" is set
+// GetText returns the current text of this text view. If "stripAllTags" is set
 // to true, any region/color tags are stripped from the text.
-func (t *TextView) GetText(stripTags bool) string {
+func (t *TextView) GetText(stripAllTags bool) string {
 	// Get the buffer.
-	buffer := t.buffer
-	if !stripTags {
+	buffer := make([]string, len(t.buffer), len(t.buffer)+1)
+	copy(buffer, t.buffer)
+	if !stripAllTags {
 		buffer = append(buffer, string(t.recentBytes))
 	}
 
@@ -282,14 +283,14 @@ func (t *TextView) GetText(stripTags bool) string {
 	text := strings.Join(buffer, "\n")
 
 	// Strip from tags if required.
-	if stripTags {
+	if stripAllTags {
 		if t.regions {
 			text = regionPattern.ReplaceAllString(text, "")
 		}
 		if t.dynamicColors {
-			text = colorPattern.ReplaceAllString(text, "")
+			text = stripTags(text)
 		}
-		if t.regions || t.dynamicColors {
+		if t.regions && !t.dynamicColors {
 			text = escapePattern.ReplaceAllString(text, `[$1$2]`)
 		}
 	}
@@ -550,7 +551,9 @@ func (t *TextView) GetRegionText(regionID string) string {
 				if pos == colorTagIndices[currentTag][1]-1 {
 					currentTag++
 				}
-				continue
+				if colorTagIndices[currentTag][1]-colorTagIndices[currentTag][0] > 2 {
+					continue
+				}
 			}
 
 			// Skip any regions.
@@ -683,7 +686,10 @@ func (t *TextView) reindexBuffer(width int) {
 
 	// Initial states.
 	regionID := ""
-	var highlighted bool
+	var (
+		highlighted                                  bool
+		foregroundColor, backgroundColor, attributes string
+	)
 
 	// Go through each line in the buffer.
 	for bufferIndex, str := range t.buffer {
@@ -724,10 +730,7 @@ func (t *TextView) reindexBuffer(width int) {
 		}
 
 		// Create index from split lines.
-		var (
-			originalPos, colorPos, regionPos, escapePos  int
-			foregroundColor, backgroundColor, attributes string
-		)
+		var originalPos, colorPos, regionPos, escapePos int
 		for _, splitLine := range splitLines {
 			line := &textViewIndex{
 				Line:            bufferIndex,
@@ -1166,8 +1169,8 @@ func (t *TextView) MouseHandler() func(action MouseAction, event *tcell.EventMou
 					break
 				}
 			}
-			consumed = true
 			setFocus(t)
+			consumed = true
 		case MouseScrollUp:
 			t.trackEnd = false
 			t.lineOffset--
